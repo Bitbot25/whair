@@ -4,7 +4,6 @@ use std::str::Chars;
 
 use whair::loc::{Span, Spanned};
 use whair::ParseBuffer;
-use whair::TypeOfToken;
 
 #[derive(Debug)]
 struct Token {
@@ -12,10 +11,8 @@ struct Token {
     pub ty: TokenTy,
 }
 
-impl whair::TypeOfToken for Token {
-    type TT = TokenTy;
-
-    fn ty(&self) -> Self::TT {
+impl Token {
+    pub fn ty(&self) -> TokenTy {
         self.ty
     }
 }
@@ -80,7 +77,7 @@ impl ParseError {
 fn parse_add_sub(buf: &mut ParseBuffer<Token>) -> Result<Expr, ParseError> {
     let mut lhs = parse_mul_div(buf)?;
     while let Some(tok) =
-        buf.consume_pred(|tok| tok.ty == TokenTy::Plus || tok.ty == TokenTy::Minus)
+        buf.consume(|tok| tok.ty == TokenTy::Plus || tok.ty == TokenTy::Minus)
     {
         let ty = match tok.ty {
             TokenTy::Plus => BinOpTy::Add,
@@ -99,7 +96,7 @@ fn parse_add_sub(buf: &mut ParseBuffer<Token>) -> Result<Expr, ParseError> {
 fn parse_mul_div(buf: &mut ParseBuffer<Token>) -> Result<Expr, ParseError> {
     let mut lhs = Expr::UInt(parse_uint(buf)?);
     while let Some(tok) =
-        buf.consume_pred(|tok| tok.ty == TokenTy::Star || tok.ty == TokenTy::Slash)
+        buf.consume(|tok| tok.ty == TokenTy::Star || tok.ty == TokenTy::Slash)
     {
         let ty = match tok.ty {
             TokenTy::Star => BinOpTy::Mul,
@@ -259,47 +256,6 @@ impl<'a> Tokenizer<'a> {
             }
             self.advance();
         }
-    }
-}
-
-impl<'a> IntoIterator for Tokenizer<'a> {
-    type Item = Token;
-    type IntoIter = IntoTokenIterator<'a>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        IntoTokenIterator {
-            tokenizer: self,
-            error: None,
-        }
-    }
-}
-
-struct IntoTokenIterator<'a> {
-    tokenizer: Tokenizer<'a>,
-    error: Option<ParseError>,
-}
-
-impl<'a> Iterator for IntoTokenIterator<'a> {
-    type Item = Token;
-    fn next(&mut self) -> Option<Self::Item> {
-        let tok_res = self.tokenizer.token();
-        match tok_res {
-            Ok(tok) => Some(tok),
-            Err(e) => {
-                self.error = Some(e);
-                None
-            }
-        }
-    }
-}
-
-impl<'a> IntoTokenIterator<'a> {
-    pub fn error(&self) -> Option<&ParseError> {
-        self.error.as_ref()
-    }
-
-    pub fn reset_error(&mut self) {
-        self.error = None;
     }
 }
 

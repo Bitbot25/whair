@@ -1,10 +1,5 @@
 pub mod loc;
 
-pub trait TypeOfToken {
-    type TT: Copy + Clone + Eq + PartialEq;
-    fn ty(&self) -> Self::TT;
-}
-
 pub struct ParseBuffer<'a, T> {
     index: usize,
     tokens: Vec<T>,
@@ -41,31 +36,8 @@ impl<'a, T> ParseBuffer<'a, T> {
         }
     }
 
-    pub fn consume(&mut self, tgt: T::TT) -> Option<&T>
-    where
-        T: TypeOfToken,
-    {
+    pub fn consume(&mut self, pred: impl FnOnce(&T) -> bool) -> Option<&T> {
         match self.tokens.get(self.index) {
-            Some(tok) if tok.ty() == tgt => {
-                self.index += 1;
-                Some(tok)
-            }
-            _ => None,
-        }
-    }
-
-    pub fn consume_pred(&mut self, pred: impl FnOnce(&T) -> bool) -> Option<&T> {
-        // match self.peek() {
-        // Some(tok) if pred(tok) => {
-        // self.index += 1;
-        // Some(tok)
-        // }
-        // _ => None,
-        // }
-        match self.tokens.get(self.index) {
-            // TODO: What the fuck is this? When i manually inline
-            // the function it works but when i instead call
-            // self.peek() it complains about borrowing self.index?
             Some(tok) if pred(tok) => {
                 self.index += 1;
                 Some(tok)
