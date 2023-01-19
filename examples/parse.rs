@@ -2,6 +2,7 @@
 use std::iter::Peekable;
 use std::str::Chars;
 
+use whair::fmt::{self as wfmt, UnderlineFunctionData};
 use whair::loc::{Span, Spanned};
 use whair::ParseBuffer;
 
@@ -76,9 +77,7 @@ impl ParseError {
 
 fn parse_add_sub(buf: &mut ParseBuffer<Token>) -> Result<Expr, ParseError> {
     let mut lhs = parse_mul_div(buf)?;
-    while let Some(tok) =
-        buf.consume(|tok| tok.ty == TokenTy::Plus || tok.ty == TokenTy::Minus)
-    {
+    while let Some(tok) = buf.consume(|tok| tok.ty == TokenTy::Plus || tok.ty == TokenTy::Minus) {
         let ty = match tok.ty {
             TokenTy::Plus => BinOpTy::Add,
             TokenTy::Minus => BinOpTy::Sub,
@@ -95,9 +94,7 @@ fn parse_add_sub(buf: &mut ParseBuffer<Token>) -> Result<Expr, ParseError> {
 
 fn parse_mul_div(buf: &mut ParseBuffer<Token>) -> Result<Expr, ParseError> {
     let mut lhs = Expr::UInt(parse_uint(buf)?);
-    while let Some(tok) =
-        buf.consume(|tok| tok.ty == TokenTy::Star || tok.ty == TokenTy::Slash)
-    {
+    while let Some(tok) = buf.consume(|tok| tok.ty == TokenTy::Star || tok.ty == TokenTy::Slash) {
         let ty = match tok.ty {
             TokenTy::Star => BinOpTy::Mul,
             TokenTy::Slash => BinOpTy::Div,
@@ -296,8 +293,35 @@ fn find_line_bounds(input: &str, index: usize) -> Span {
         None => 0,
     };
 
-    let end = search_iter.find(is_newline).map(|(i, _c)| i).unwrap_or(input.len());
+    let end = search_iter
+        .find(is_newline)
+        .map(|(i, _c)| i)
+        .unwrap_or(input.len());
     Span(start, end)
+}
+
+fn print_error(span: Span, source: &str, head: &str) {
+    eprintln!("ERROR ({}..{}): {}", span.0, span.1, head);
+    let select = wfmt::SelectOverAdapter {
+        inner: source,
+        span,
+    };
+    let underlined = wfmt::UnderlineAdapter {
+        inner: select,
+        function: |data| {
+            let line_begin = data.line_span.0.min(span.0);
+            let rel_highlight_span = Span(span.0 - line_begin, span.1 - line_begin);
+
+            // FIXME: This assumes the template char doesn't contain special characters (>1 byte)
+            let mut template = String::from('-').repeat(data.line_contents.len() + 1); // +1 for newline
+            template.replace_range(
+                rel_highlight_span.0..rel_highlight_span.1.min(data.line_contents.len() + 1),
+                "^",
+            );
+            Some(template.into())
+        },
+    };
+    eprintln!("{}", underlined);
 }
 
 fn main() {
@@ -320,25 +344,14 @@ fn main() {
 
     let mut binop = ParseBuffer::new(tokens, input);
     let res = parse_add_sub(&mut binop);
+
     match res {
         Ok(ast) => {
             dbg!(ast);
         }
-        Err(e) => {
-            match e.maybe_span() {
-                None => eprintln!("ERROR: {}", e.output),
-                Some(span) => {
-                    eprintln!("ERROR ({}..{}): {}", span.0, span.1, e.output);
-                    let line_span = find_line_bounds(input, span.0);
-
-                    // TODO: Make this able to highlight
-                    // multiple lines
-                    let line = &input[line_span.0..line_span.1];
-                    let rel_span = Span(span.0 - line_span.0, span.1 - line_span.0);
-
-                    eprintln!("{}", highlight_oneliner(line, rel_span));
-                }
-            }
-        }
+        Err(e) => match e.maybe_span() {
+            None => eprintln!("ERROR: {}", e.output),
+            Some(span) => print_error(span, input, e.output),
+        },
     }
 }

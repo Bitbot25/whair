@@ -1,3 +1,5 @@
+#![feature(trait_alias)]
+pub mod fmt;
 pub mod loc;
 
 pub struct ParseBuffer<'a, T> {

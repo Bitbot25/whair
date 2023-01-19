@@ -1,3 +1,8 @@
+pub struct SourceSpan<'a> {
+    src: &'a str,
+    span: Span,
+}
+
 #[derive(Copy, Clone, Debug)]
 pub struct Span(pub usize, pub usize);
 
