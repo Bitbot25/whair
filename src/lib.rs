@@ -1,6 +1,7 @@
 #![feature(trait_alias)]
 pub mod fmt;
 pub mod loc;
+pub mod token;
 
 pub struct ParseBuffer<'a, T> {
     index: usize,

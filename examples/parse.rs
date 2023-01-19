@@ -4,6 +4,7 @@ use std::str::Chars;
 
 use whair::fmt as wfmt;
 use whair::loc::{Span, Spanned};
+use whair::token::Tokenizer;
 use whair::ParseBuffer;
 
 #[derive(Debug)]
@@ -129,7 +130,7 @@ fn parse_uint(buf: &mut ParseBuffer<Token>) -> Result<ExprUInt, ParseError> {
     }
 }
 
-struct Tokenizer<'a> {
+struct MyTokenizer<'a> {
     chars: Peekable<Chars<'a>>,
     orig: &'a str,
     idx: usize,
@@ -151,22 +152,15 @@ macro_rules! matched_tok {
     }};
 }
 
-impl<'a> Tokenizer<'a> {
-    const KEYWORDS: [&'static str; 1] = ["fun"];
+impl<'a> whair::token::Tokenizer for MyTokenizer<'a> {
+    type Token = Token;
+    type Err = ParseError;
 
-    pub fn new(input: &'a str) -> Tokenizer<'a> {
-        Tokenizer {
-            chars: input.chars().peekable(),
-            orig: input,
-            idx: 0,
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
+    fn is_eof(&self) -> bool {
         self.idx >= self.orig.len()
     }
 
-    pub fn token(&mut self) -> Result<Token, ParseError> {
+    fn next_token(&mut self) -> Result<Token, ParseError> {
         let begin = self.idx;
         let c = self.chars.peek().ok_or(ParseError {
             output: "Reached EOF but expected token.",
@@ -179,7 +173,7 @@ impl<'a> Tokenizer<'a> {
 
         if is_whitespace(*c) {
             self.advance();
-            return self.token();
+            return self.next_token();
         }
 
         if *c >= '0' && *c <= '9' {
@@ -214,6 +208,18 @@ impl<'a> Tokenizer<'a> {
                 output: "Invalid character",
                 span: Some(Span(begin, begin + 1)),
             }),
+        }
+    }
+}
+
+impl<'a> MyTokenizer<'a> {
+    const KEYWORDS: [&'static str; 1] = ["fun"];
+
+    pub fn new(input: &'a str) -> MyTokenizer<'a> {
+        MyTokenizer {
+            chars: input.chars().peekable(),
+            orig: input,
+            idx: 0,
         }
     }
 
@@ -284,10 +290,10 @@ fn main() {
     // let input = include_str!("/home/edvin/repo/whair/lang");
     let input = "1*2*";
 
-    let mut tokenizer = Tokenizer::new(input);
+    let mut tokenizer = MyTokenizer::new(input);
     let mut tokens = vec![];
-    while !tokenizer.is_empty() {
-        let res = tokenizer.token();
+    while !tokenizer.is_eof() {
+        let res = tokenizer.next_token();
         match res {
             Ok(tok) => tokens.push(tok),
             Err(e) => {
