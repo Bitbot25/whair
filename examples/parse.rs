@@ -2,7 +2,7 @@
 use std::iter::Peekable;
 use std::str::Chars;
 
-use whair::fmt::{self as wfmt, UnderlineFunctionData};
+use whair::fmt as wfmt;
 use whair::loc::{Span, Spanned};
 use whair::ParseBuffer;
 
@@ -254,50 +254,6 @@ impl<'a> Tokenizer<'a> {
             self.advance();
         }
     }
-}
-
-fn highlight_oneliner(input: &str, span: Span) -> String {
-    let mut buf = input.to_string();
-    assert!(!buf.contains('\n')); // This function only works for one-liners.
-
-    buf.push('\n');
-    for _ in 0..span.0 {
-        buf.push(' ');
-    }
-
-    let diff = span.1 - span.0;
-    for _ in 0..diff {
-        buf.push('^');
-    }
-
-    let left = buf.len() - span.1;
-    for _ in 0..left {
-        buf.push(' ');
-    }
-    buf
-}
-
-fn find_line_bounds(input: &str, index: usize) -> Span {
-    fn is_newline((_i, c): &(usize, char)) -> bool {
-        *c == '\n'
-    }
-
-    let mut search_iter = input.chars().enumerate();
-    search_iter.advance_by(index).unwrap();
-
-    let mut rev_search_iter = input.chars().rev().enumerate();
-    rev_search_iter.advance_by(input.len() - index).unwrap();
-
-    let start = match rev_search_iter.find(is_newline) {
-        Some((i, _c)) => index - i + 1,
-        None => 0,
-    };
-
-    let end = search_iter
-        .find(is_newline)
-        .map(|(i, _c)| i)
-        .unwrap_or(input.len());
-    Span(start, end)
 }
 
 fn print_error(span: Span, source: &str, head: &str) {
