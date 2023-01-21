@@ -2,7 +2,7 @@
 use std::iter::Peekable;
 use std::str::Chars;
 
-use whair::fmt as wfmt;
+use whair::fmt::{self as wfmt, FmtBufRender, FmtRender};
 use whair::loc::{Span, Spanned};
 use whair::token::Tokenizer;
 use whair::ParseBuffer;
@@ -262,30 +262,6 @@ impl<'a> MyTokenizer<'a> {
     }
 }
 
-fn print_error(span: Span, source: &str, head: &str) {
-    eprintln!("ERROR ({}..{}): {}", span.0, span.1, head);
-    let select = wfmt::SelectOverAdapter {
-        inner: source,
-        span,
-    };
-    let underlined = wfmt::UnderlineAdapter {
-        inner: select,
-        function: |data| {
-            let line_begin = data.line_span.0.min(span.0);
-            let rel_highlight_span = Span(span.0 - line_begin, span.1 - line_begin);
-
-            // FIXME: This assumes the template char doesn't contain special characters (>1 byte)
-            let mut template = String::from('-').repeat(data.line_contents.len() + 1); // +1 for newline
-            template.replace_range(
-                rel_highlight_span.0..rel_highlight_span.1.min(data.line_contents.len() + 1),
-                "^",
-            );
-            Some(template.into())
-        },
-    };
-    eprintln!("{}", underlined);
-}
-
 fn main() {
     // let input = include_str!("/home/edvin/repo/whair/lang");
     let input = "1*2*";
@@ -307,13 +283,37 @@ fn main() {
     let mut binop = ParseBuffer::new(tokens, input);
     let res = parse_add_sub(&mut binop);
 
+    let mut render_buf = wfmt::FmtBuffer::new();
+
     match res {
         Ok(ast) => {
             dbg!(ast);
         }
         Err(e) => match e.maybe_span() {
-            None => eprintln!("ERROR: {}", e.output),
-            Some(span) => print_error(span, input, e.output),
+            _ => {
+                let header_text = [
+                    wfmt::Text::new(
+                        "error: ",
+                        wfmt::Styles::new(wfmt::Color::Red, wfmt::StyleAttributes::BOLD),
+                    ),
+                    wfmt::Text::new(
+                        e.output,
+                        wfmt::Styles::new(wfmt::Color::Red, wfmt::StyleAttributes::empty()),
+                    ),
+                ];
+                let header = wfmt::MultipartText::new(&header_text);
+
+                header.fmt_render(
+                    &mut render_buf,
+                    wfmt::RenderOptions::builder()
+                        .location(wfmt::RenderLocation::Header)
+                        .build(),
+                    wfmt::NoExtraOptions,
+                );
+                let mut string = String::new();
+                render_buf.fmt_render_to_string(&mut string);
+                eprint!("{string}");
+            }
         },
     }
 }

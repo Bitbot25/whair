@@ -1,4 +1,4 @@
-#![feature(trait_alias)]
+#![feature(associated_type_defaults, trait_alias)]
 pub mod fmt;
 pub mod loc;
 pub mod token;
