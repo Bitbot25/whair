@@ -2,7 +2,12 @@
 use std::iter::Peekable;
 use std::str::Chars;
 
-use whair::fmt::{self as wfmt, FmtBufRender, FmtRender};
+use codespan::diagnostic::{Diagnostic, Label};
+use codespan::files::SimpleFiles;
+use codespan::term;
+use codespan::term::termcolor::{ColorChoice, StandardStream};
+use codespan_reporting as codespan;
+// use whair::fmt::{self as wfmt, FmtBufRender, FmtRender};
 use whair::loc::{Span, Spanned};
 use whair::token::Tokenizer;
 use whair::ParseBuffer;
@@ -265,6 +270,8 @@ impl<'a> MyTokenizer<'a> {
 fn main() {
     // let input = include_str!("/home/edvin/repo/whair/lang");
     let input = "1*2*";
+    let mut files = SimpleFiles::new();
+    let source_id = files.add("<source>", input);
 
     let mut tokenizer = MyTokenizer::new(input);
     let mut tokens = vec![];
@@ -283,37 +290,22 @@ fn main() {
     let mut binop = ParseBuffer::new(tokens, input);
     let res = parse_add_sub(&mut binop);
 
-    let mut render_buf = wfmt::FmtBuffer::new();
+    // let mut render_buf = wfmt::FmtBuffer::new();
 
     match res {
         Ok(ast) => {
             dbg!(ast);
         }
         Err(e) => match e.maybe_span() {
-            _ => {
-                let header_text = [
-                    wfmt::Text::new(
-                        "error: ",
-                        wfmt::Styles::new(wfmt::Color::Red, wfmt::StyleAttributes::BOLD),
-                    ),
-                    wfmt::Text::new(
-                        e.output,
-                        wfmt::Styles::new(wfmt::Color::Red, wfmt::StyleAttributes::empty()),
-                    ),
-                ];
-                let header = wfmt::MultipartText::new(&header_text);
-
-                header.fmt_render(
-                    &mut render_buf,
-                    wfmt::RenderOptions::builder()
-                        .location(wfmt::RenderLocation::Header)
-                        .build(),
-                    wfmt::NoExtraOptions,
-                );
-                let mut string = String::new();
-                render_buf.fmt_render_to_string(&mut string);
-                eprint!("{string}");
+            Some(span) => {
+                let diagnostic = Diagnostic::error()
+                    .with_message(e.output)
+                    .with_labels(vec![Label::primary(source_id, span.0..span.1)]);
+                let writer = StandardStream::stderr(ColorChoice::Always);
+                let config = term::Config::default();
+                term::emit(&mut writer.lock(), &config, &files, &diagnostic).unwrap();
             }
+            None => todo!(),
         },
     }
 }
